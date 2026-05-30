@@ -18,6 +18,7 @@ const Attendance: React.FC = () => {
   const [selectedPolo, setSelectedPolo] = useState<Polo | 'all'>('all');
   const [selectedClass, setSelectedClass] = useState<string>(location.state?.classId || '');
   const [date, setDate] = useState(location.state?.date || format(new Date(), 'yyyy-MM-dd'));
+  const [shift, setShift] = useState<'Manhã' | 'Tarde'>(location.state?.shift || 'Manhã');
   const [editingTeacherId, setEditingTeacherId] = useState<string | null>(location.state?.teacherId || null);
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
@@ -78,7 +79,7 @@ const Attendance: React.FC = () => {
     }
   }, [selectedClass]);
 
-  // Fetch existing attendance records when class or date changes
+  // Fetch existing attendance records when class, date, or shift changes
   useEffect(() => {
     if (!selectedClass || !date) {
       setAttendance({});
@@ -96,22 +97,27 @@ const Attendance: React.FC = () => {
       where('teacherId', '==', targetTeacherId)
     );
     
-    // We only want to populate the attendance state ONCE when class or date changes
+    // We only want to populate the attendance state ONCE when class, date, or shift changes
     // to allow the user to then edit it locally before saving.
     getDocs(q).then(snap => {
       if (!isMounted.current) return;
       const initial: Record<string, AttendanceStatus> = {};
+      const matchedRecordIds: string[] = [];
       snap.docs.forEach(doc => {
         const data = doc.data();
-        if (data.studentId) initial[data.studentId] = 'present';
+        const docShift = data.shift || 'Manhã';
+        if (docShift === shift) {
+          if (data.studentId) initial[data.studentId] = 'present';
+          matchedRecordIds.push(doc.id);
+        }
       });
       setAttendance(initial);
-      setExistingRecords(snap.docs.map(d => d.id));
+      setExistingRecords(matchedRecordIds);
     }).catch(err => {
       console.error("Error fetching attendance:", err);
       handleFirestoreError(err, OperationType.LIST, 'attendance');
     });
-  }, [selectedClass, date]);
+  }, [selectedClass, date, shift, editingTeacherId]);
 
   // Handle report fetching separately
   useEffect(() => {
@@ -132,9 +138,10 @@ const Attendance: React.FC = () => {
     );
 
     return onSnapshot(qReport, (snap) => {
-      if (!snap.empty) {
-        setReport(snap.docs[0].data().content);
-        setExistingReportId(snap.docs[0].id);
+      const match = snap.docs.find(doc => (doc.data().shift || 'Manhã') === shift);
+      if (match) {
+        setReport(match.data().content);
+        setExistingReportId(match.id);
       } else {
         setReport('');
         setExistingReportId(null);
@@ -142,7 +149,7 @@ const Attendance: React.FC = () => {
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, 'class_reports');
     });
-  }, [selectedClass, date]);
+  }, [selectedClass, date, shift, editingTeacherId]);
 
   // Handle incidents fetching separately
   useEffect(() => {
@@ -163,9 +170,10 @@ const Attendance: React.FC = () => {
     );
 
     return onSnapshot(qIncident, (snap) => {
-      if (!snap.empty) {
-        setIncident(snap.docs[0].data().description);
-        setExistingIncidentId(snap.docs[0].id);
+      const match = snap.docs.find(doc => (doc.data().shift || 'Manhã') === shift);
+      if (match) {
+        setIncident(match.data().description);
+        setExistingIncidentId(match.id);
       } else {
         setIncident('');
         setExistingIncidentId(null);
@@ -173,7 +181,7 @@ const Attendance: React.FC = () => {
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, 'interruptions');
     });
-  }, [selectedClass, date]);
+  }, [selectedClass, date, shift, editingTeacherId]);
 
   const handleToggle = (studentId: string) => {
     if (!selectedClass || !user || !date) return;
@@ -201,7 +209,7 @@ const Attendance: React.FC = () => {
       const targetTeacherId = editingTeacherId || user.uid;
 
       // 1. Process Attendance Records
-      // First, we need to know which records currently exist in the DB for THIS teacher to know if we overwrite or delete
+      // First, fetch existing DB records for this teacher, and filter by current selected shift
       const q = query(
         collection(db, 'attendance'), 
         where('classId', '==', selectedClass),
@@ -211,14 +219,17 @@ const Attendance: React.FC = () => {
       const currentSnap = await getDocs(q);
       const existingInDb = new Map<string, string>(); // studentId -> recordDocId
       currentSnap.docs.forEach(doc => {
-        existingInDb.set(doc.data().studentId, doc.id);
+        const data = doc.data();
+        if ((data.shift || 'Manhã') === shift) {
+          existingInDb.set(data.studentId, doc.id);
+        }
       });
 
       // Update/Create records for ALL students in the class based on local 'attendance' state
       students.forEach(student => {
         const isPresent = attendance[student.id] === 'present';
         const existingDocId = existingInDb.get(student.id);
-        const recordId = `res_attend_${student.id}_${selectedClass}_${date}_${targetTeacherId}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const recordId = `res_attend_${student.id}_${selectedClass}_${date}_${targetTeacherId}_${shift}`.replace(/[^a-zA-Z0-9_-]/g, '_');
         const recordRef = doc(db, 'attendance', recordId);
 
         if (isPresent) {
@@ -227,6 +238,7 @@ const Attendance: React.FC = () => {
             classId: selectedClass,
             polo,
             date,
+            shift, // Save shift
             status: 'present' as AttendanceStatus,
             teacherId: targetTeacherId,
             timestamp: now
@@ -238,7 +250,7 @@ const Attendance: React.FC = () => {
       });
 
       // 2. Surgical saving for Report
-      const reportId = `report_${selectedClass}_${date}_${targetTeacherId}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const reportId = `report_${selectedClass}_${date}_${targetTeacherId}_${shift}`.replace(/[^a-zA-Z0-9_-]/g, '_');
       const reportRef = doc(db, 'class_reports', reportId);
       
       if (report.trim()) {
@@ -247,6 +259,7 @@ const Attendance: React.FC = () => {
           teacherId: targetTeacherId,
           polo,
           date,
+          shift, // Save shift
           content: report.trim(),
           timestamp: now
         });
@@ -255,7 +268,7 @@ const Attendance: React.FC = () => {
       }
 
       // 3. Surgical saving for Incidents
-      const incidentId = `incident_${selectedClass}_${date}_${targetTeacherId}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const incidentId = `incident_${selectedClass}_${date}_${targetTeacherId}_${shift}`.replace(/[^a-zA-Z0-9_-]/g, '_');
       const incidentRef = doc(db, 'interruptions', incidentId);
       
       if (incident.trim()) {
@@ -264,6 +277,7 @@ const Attendance: React.FC = () => {
           teacherId: targetTeacherId,
           polo,
           date,
+          shift, // Save shift
           description: incident.trim(),
           timestamp: now
         });
@@ -328,7 +342,7 @@ const Attendance: React.FC = () => {
             </p>
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="space-y-2">
             <label className="text-sm font-bold text-slate-700 ml-1">Polo de Gestão</label>
             <div className="flex gap-2 bg-slate-50 p-1 rounded-2xl border border-slate-100">
@@ -337,7 +351,7 @@ const Attendance: React.FC = () => {
                   setSelectedPolo('all');
                   setSelectedClass('');
                 }}
-                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedPolo === 'all' ? 'bg-white text-[#1a36b1] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                className={`flex-1 py-1.5 md:py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedPolo === 'all' ? 'bg-white text-[#1a36b1] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 Todos
               </button>
@@ -346,7 +360,7 @@ const Attendance: React.FC = () => {
                   setSelectedPolo('salvador');
                   setSelectedClass('');
                 }}
-                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedPolo === 'salvador' ? 'bg-white text-[#1a36b1] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                className={`flex-1 py-1.5 md:py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedPolo === 'salvador' ? 'bg-white text-[#1a36b1] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 Salvador
               </button>
@@ -355,7 +369,7 @@ const Attendance: React.FC = () => {
                   setSelectedPolo('ilha');
                   setSelectedClass('');
                 }}
-                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedPolo === 'ilha' ? 'bg-white text-[#1a36b1] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                className={`flex-1 py-1.5 md:py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedPolo === 'ilha' ? 'bg-white text-[#1a36b1] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 Ilha
               </button>
@@ -368,7 +382,7 @@ const Attendance: React.FC = () => {
               <select
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
-                className="w-full pl-12 pr-10 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-600 appearance-none"
+                className="w-full pl-12 pr-10 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-600 appearance-none text-sm"
               >
                 <option value="">Selecione uma turma...</option>
                 {classes
@@ -381,6 +395,23 @@ const Attendance: React.FC = () => {
             </div>
           </div>
           <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 ml-1">Turno</label>
+            <div className="flex gap-2 bg-slate-50 p-1 rounded-2xl border border-slate-100">
+              <button
+                onClick={() => setShift('Manhã')}
+                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${shift === 'Manhã' ? 'bg-white text-[#1a36b1] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                Manhã
+              </button>
+              <button
+                onClick={() => setShift('Tarde')}
+                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${shift === 'Tarde' ? 'bg-white text-[#1a36b1] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                Tarde
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
             <label className="text-sm font-bold text-slate-700 ml-1">Buscar Aluno</label>
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -389,7 +420,7 @@ const Attendance: React.FC = () => {
                 placeholder="Nome ou matrícula..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-600"
+                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-600 text-sm"
               />
             </div>
           </div>

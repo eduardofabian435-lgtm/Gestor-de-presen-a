@@ -40,6 +40,7 @@ const Reports: React.FC = () => {
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedStudent, setSelectedStudent] = useState<string>('');
   const [selectedTeacher, setSelectedTeacher] = useState<string>('');
+  const [selectedShift, setSelectedShift] = useState<'all' | 'Manhã' | 'Tarde'>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   
@@ -161,6 +162,9 @@ const Reports: React.FC = () => {
         if (endDate) {
           data = data.filter(a => a.date <= endDate);
         }
+        if (selectedShift !== 'all') {
+          data = data.filter(a => (a.shift || 'Manhã') === selectedShift);
+        }
         
         setAttendance(data);
       } catch (err) {
@@ -186,6 +190,9 @@ const Reports: React.FC = () => {
         let data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Interruption));
         if (startDate) data = data.filter(i => i.date >= startDate);
         if (endDate) data = data.filter(i => i.date <= endDate);
+        if (selectedShift !== 'all') {
+          data = data.filter(i => (i.shift || 'Manhã') === selectedShift);
+        }
         setInterruptions(data);
       } catch (err) {
         console.error("Error fetching interruptions:", err);
@@ -210,6 +217,9 @@ const Reports: React.FC = () => {
         let data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassReport));
         if (startDate) data = data.filter(r => r.date >= startDate);
         if (endDate) data = data.filter(r => r.date <= endDate);
+        if (selectedShift !== 'all') {
+          data = data.filter(r => (r.shift || 'Manhã') === selectedShift);
+        }
         setClassReports(data);
         setLoading(false);
       } catch (err) {
@@ -224,12 +234,12 @@ const Reports: React.FC = () => {
       unsubInterruptions();
       unsubClassReports();
     };
-  }, [selectedClass, selectedStudent, startDate, endDate, selectedTeacher, classes, isAdmin, selectedPolo]);
+  }, [selectedClass, selectedStudent, startDate, endDate, selectedTeacher, classes, isAdmin, selectedPolo, selectedShift]);
 
   const sessionKeys = useMemo(() => {
-    const fromAttendance = attendance.map(a => `${a.classId}_${a.date}_${a.teacherId}`);
-    const fromReports = classReports.map(r => `${r.classId}_${r.date}_${r.teacherId}`);
-    const fromInterruptions = interruptions.map(i => `${i.classId}_${i.date}_${i.teacherId}`);
+    const fromAttendance = attendance.map(a => `${a.classId}_${a.date}_${a.teacherId}_${a.shift || 'Manhã'}`);
+    const fromReports = classReports.map(r => `${r.classId}_${r.date}_${r.teacherId}_${r.shift || 'Manhã'}`);
+    const fromInterruptions = interruptions.map(i => `${i.classId}_${i.date}_${i.teacherId}_${i.shift || 'Manhã'}`);
     
     return Array.from(new Set([...fromAttendance, ...fromReports, ...fromInterruptions]));
   }, [attendance, classReports, interruptions]);
@@ -505,7 +515,7 @@ const Reports: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm grid grid-cols-1 md:grid-cols-6 gap-4">
+      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-slate-400">Polo</label>
           <div className="relative">
@@ -573,6 +583,22 @@ const Reports: React.FC = () => {
               {teachers.map(t => (
                 <option key={t.uid} value={t.uid}>{t.name}</option>
               ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-slate-400">Turno</label>
+          <div className="relative">
+            <select
+              value={selectedShift}
+              onChange={(e) => setSelectedShift(e.target.value as any)}
+              className="w-full pl-3 pr-10 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-[#1a36b1] outline-none transition-all text-sm appearance-none text-slate-600"
+            >
+              <option value="all">Todos os turnos</option>
+              <option value="Manhã">Manhã</option>
+              <option value="Tarde">Tarde</option>
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
@@ -779,6 +805,9 @@ const Reports: React.FC = () => {
                             <span className="px-2 py-0.5 bg-[#1a36b1]/10 text-[#1a36b1] text-[10px] font-black uppercase tracking-widest rounded">
                               {classes.find(c => c.id === report.classId)?.name || 'Turma'}
                             </span>
+                            <span className="px-2 py-0.5 bg-[#f9a825]/10 text-[#f9a825] text-[10px] font-black uppercase tracking-widest rounded animate-fade-in">
+                              {report.shift || 'Manhã'}
+                            </span>
                             <span className="text-xs font-bold text-slate-400">
                               {safeFormatDate(report.date, "d 'de' MMMM, yyyy", { locale: ptBR })}
                             </span>
@@ -795,7 +824,7 @@ const Reports: React.FC = () => {
                           <div className="flex justify-end gap-2 pt-2">
                             {isAdmin && (
                               <button
-                                onClick={() => navigate('/attendance', { state: { classId: report.classId, date: report.date, teacherId: report.teacherId } })}
+                                onClick={() => navigate('/attendance', { state: { classId: report.classId, date: report.date, teacherId: report.teacherId, shift: report.shift || 'Manhã' } })}
                                 className="text-blue-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-lg transition-all flex items-center justify-center shadow-sm border border-transparent hover:border-blue-100"
                                 title="Editar Relatório"
                               >
@@ -848,6 +877,9 @@ const Reports: React.FC = () => {
                         <span className="px-2 py-0.5 bg-[#1a36b1]/10 text-[#1a36b1] text-[10px] font-black uppercase tracking-widest rounded">
                           {classes.find(c => c.id === item.classId)?.name || 'Turma'}
                         </span>
+                        <span className="px-2 py-0.5 bg-[#f9a825]/10 text-[#f9a825] text-[10px] font-black uppercase tracking-widest rounded animate-fade-in">
+                          {item.shift || 'Manhã'}
+                        </span>
                         <span className="text-xs font-bold text-slate-400">
                           {safeFormatDate(item.date, "d 'de' MMMM, yyyy", { locale: ptBR })}
                         </span>
@@ -861,7 +893,7 @@ const Reports: React.FC = () => {
                         <div className="flex justify-end gap-2 pt-2">
                           {isAdmin && (
                             <button
-                              onClick={() => navigate('/attendance', { state: { classId: item.classId, date: item.date, teacherId: item.teacherId } })}
+                              onClick={() => navigate('/attendance', { state: { classId: item.classId, date: item.date, teacherId: item.teacherId, shift: item.shift || 'Manhã' } })}
                               className="text-blue-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-lg transition-all flex items-center justify-center shadow-sm border border-transparent hover:border-blue-100"
                               title="Editar Intercorrência"
                             >

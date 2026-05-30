@@ -51,6 +51,7 @@ export interface AttendanceRecord {
   date: string; // YYYY-MM-DD
   status: AttendanceStatus;
   teacherId: string;
+  shift?: 'Manhã' | 'Tarde';
   timestamp: any;
 }
 
@@ -60,6 +61,7 @@ export interface Interruption {
   teacherId: string;
   polo: Polo;
   date: string;
+  shift?: 'Manhã' | 'Tarde';
   description: string;
   timestamp: any;
 }
@@ -70,6 +72,7 @@ export interface ClassReport {
   teacherId: string;
   polo: Polo;
   date: string;
+  shift?: 'Manhã' | 'Tarde';
   content: string;
   timestamp: any;
 }

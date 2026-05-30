@@ -32,6 +32,7 @@ interface RecentAttendance {
   classId: string;
   date: string;
   teacherId: string;
+  shift?: string;
   presentCount: number;
   totalCount: number;
 }
@@ -146,13 +147,15 @@ const Dashboard: React.FC = () => {
           const classPolo = r.polo || ''; // Use polo from record if available, or we'll need to check classesPoloMap
           if (selectedPolo !== 'all' && classPolo !== selectedPolo) return;
 
-          const key = `${r.date}_${r.classId}_${r.teacherId}`;
+          const recordShift = r.shift || 'Manhã';
+          const key = `${r.date}_${r.classId}_${r.teacherId}_${recordShift}`;
           if (!sessions[key]) {
             sessions[key] = {
               id: key,
               classId: r.classId,
               date: r.date,
               teacherId: r.teacherId,
+              shift: recordShift,
               presentCount: 0,
               totalCount: 0,
               timestamp: r.timestamp
@@ -196,7 +199,7 @@ const Dashboard: React.FC = () => {
             // Only count if the teacher is the one we are looking at (or any if admin)
             const matchesTeacher = !simulatedTeacherId || data.teacherId === simulatedTeacherId || (profile?.role === 'teacher' && data.teacherId === profile.uid);
             if (isAdmin ? (simulatedTeacherId ? data.teacherId === simulatedTeacherId : true) : data.teacherId === profile?.uid) {
-              monthSessions.add(`${data.date}_${data.classId}_${data.teacherId}`);
+              monthSessions.add(`${data.date}_${data.classId}_${data.teacherId}_${data.shift || 'Manhã'}`);
             }
           }
         });
@@ -368,7 +371,12 @@ const Dashboard: React.FC = () => {
                       <Calendar className="w-6 h-6" />
                     </div>
                     <div>
-                      <p className="font-black text-slate-900">{classesMap[record.classId] || 'Carregando...'}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-black text-slate-900">{classesMap[record.classId] || 'Carregando...'}</p>
+                        <span className="px-1.5 py-0.5 bg-[#f9a825]/10 text-[#f9a825] text-[9px] font-black uppercase tracking-widest rounded leading-none shrink-0">
+                          {record.shift || 'Manhã'}
+                        </span>
+                      </div>
                       <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                         {format(new Date(record.date + 'T12:00:00'), "d 'de' MMM", { locale: ptBR })} • {teachersMap[record.teacherId] || 'Professor'}
                       </p>
