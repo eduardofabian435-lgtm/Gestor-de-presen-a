@@ -26,7 +26,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Student, ClassRoom } from '../types';
+import { Student, ClassRoom, getStudentClassIds } from '../types';
 import { cn } from '../lib/utils';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { handleFirestoreError } from '../lib/firebaseUtils';
@@ -49,7 +49,7 @@ const Students: React.FC = () => {
   // Form state
   const [formData, setFormData] = useState({
     name: '',
-    classId: '',
+    classIds: [] as string[],
     polo: 'salvador' as 'salvador' | 'ilha',
     email: '',
     phone: '',
@@ -91,7 +91,8 @@ const Students: React.FC = () => {
     return students.filter(student => {
       const name = student.name || '';
       const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesGroup = selectedGroup === 'all' || student.classId === selectedGroup;
+      const studentClassIds = getStudentClassIds(student);
+      const matchesGroup = selectedGroup === 'all' || studentClassIds.includes(selectedGroup);
       const matchesPolo = selectedPolo === 'all' || student.polo === selectedPolo;
       return matchesSearch && matchesGroup && matchesPolo;
     });
@@ -102,7 +103,7 @@ const Students: React.FC = () => {
       setEditingStudent(student);
       setFormData({
         name: student.name,
-        classId: student.classId,
+        classIds: getStudentClassIds(student),
         polo: student.polo || 'salvador',
         email: student.email || '',
         phone: student.phone || '',
@@ -113,9 +114,10 @@ const Students: React.FC = () => {
       setEditingStudent(null);
       // Pre-select polo if a filter is active
       const initialPolo = selectedPolo !== 'all' ? selectedPolo : 'salvador';
+      const initialClassIds = selectedGroup !== 'all' ? [selectedGroup] : [];
       setFormData({
         name: '',
-        classId: selectedGroup !== 'all' ? selectedGroup : '',
+        classIds: initialClassIds,
         polo: initialPolo,
         email: '',
         phone: '',
@@ -133,8 +135,8 @@ const Students: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.classId) {
-      alert('Por favor, preencha o nome e selecione um grupo.');
+    if (!formData.name || formData.classIds.length === 0) {
+      alert('Por favor, preencha o nome e selecione pelo menos um grupo/turma.');
       return;
     }
 
@@ -142,7 +144,8 @@ const Students: React.FC = () => {
     try {
       const studentData = {
         name: formData.name,
-        classId: formData.classId,
+        classId: formData.classIds[0] || '',
+        classIds: formData.classIds,
         polo: formData.polo,
         status: formData.status,
         registrationNumber: formData.registrationNumber,
@@ -297,9 +300,22 @@ const Students: React.FC = () => {
                     </td>
                     <td className="px-8 py-4">
                       <div className="flex flex-col gap-1">
-                        <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold whitespace-nowrap w-fit">
-                          {classes.find(c => c.id === student.classId)?.name || 'Sem grupo'}
-                        </span>
+                        <div className="flex flex-wrap gap-1 max-w-[200px]">
+                          {getStudentClassIds(student).map(cId => {
+                            const clsName = classes.find(c => c.id === cId)?.name;
+                            if (!clsName) return null;
+                            return (
+                              <span key={cId} className="px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded-full text-[10px] font-bold whitespace-nowrap">
+                                {clsName}
+                              </span>
+                            );
+                          })}
+                          {getStudentClassIds(student).length === 0 && (
+                            <span className="px-2.5 py-1 bg-slate-100 text-slate-400 rounded-full text-[10px] font-bold">
+                              Sem grupo
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">
                           Polo {student.polo === 'salvador' ? 'Salvador' : 'Ilha'}
                         </span>
@@ -392,10 +408,23 @@ const Students: React.FC = () => {
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Grupo</p>
-                    <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold">
-                      {classes.find(c => c.id === student.classId)?.name || 'Sem grupo'}
-                    </span>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Grupos</p>
+                    <div className="flex flex-wrap gap-1">
+                      {getStudentClassIds(student).map(cId => {
+                        const clsName = classes.find(c => c.id === cId)?.name;
+                        if (!clsName) return null;
+                        return (
+                          <span key={cId} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold">
+                            {clsName}
+                          </span>
+                        );
+                      })}
+                      {getStudentClassIds(student).length === 0 && (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-400 rounded-full text-[10px] font-bold">
+                          Sem grupo
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status</p>
@@ -503,21 +532,54 @@ const Students: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Grupo</label>
-                    <div className="relative">
-                      <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                      <select
-                        required
-                        value={formData.classId}
-                        onChange={(e) => setFormData({ ...formData, classId: e.target.value })}
-                        className="w-full pl-12 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium appearance-none"
-                      >
-                        <option value="">Selecione um grupo</option>
-                        {classes.map(cls => (
-                          <option key={cls.id} value={cls.id}>{cls.name}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-bold text-slate-700">
+                        Grupos / Turmas <span className="text-xs font-normal text-slate-400">(Selecione um ou mais)</span>
+                      </label>
+                      <span className="text-xs font-bold text-[#1a36b1]">
+                        {formData.classIds.length} selecionado(s)
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      {classes.length === 0 ? (
+                        <p className="text-xs text-slate-400 p-2 text-center">Nenhum grupo cadastrado.</p>
+                      ) : (
+                        classes
+                          .filter(cls => {
+                            const cPolo = (cls.polo || 'salvador').toString().toLowerCase().trim();
+                            return cPolo === formData.polo;
+                          })
+                          .map(cls => {
+                            const isChecked = formData.classIds.includes(cls.id);
+                            return (
+                              <label
+                                key={cls.id}
+                                className={cn(
+                                  "flex items-center justify-between p-3 rounded-lg border text-sm font-bold cursor-pointer transition-all",
+                                  isChecked
+                                    ? "bg-[#1a36b1]/10 border-[#1a36b1] text-[#1a36b1]"
+                                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                                )}
+                              >
+                                <span>{cls.name}</span>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      classIds: checked
+                                        ? [...prev.classIds, cls.id]
+                                        : prev.classIds.filter(id => id !== cls.id)
+                                    }));
+                                  }}
+                                  className="w-4 h-4 rounded text-[#1a36b1] focus:ring-[#1a36b1] cursor-pointer"
+                                />
+                              </label>
+                            );
+                          })
+                      )}
                     </div>
                   </div>
 

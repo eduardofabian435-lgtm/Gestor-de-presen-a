@@ -68,8 +68,13 @@ const Groups: React.FC = () => {
       const studentsSnap = await getDocs(collection(db, 'students'));
       const studentCounts: Record<string, number> = {};
       studentsSnap.docs.forEach(doc => {
-        const classId = doc.data().classId;
-        studentCounts[classId] = (studentCounts[classId] || 0) + 1;
+        const studentData = doc.data();
+        const cIds = Array.isArray(studentData.classIds) && studentData.classIds.length > 0
+          ? studentData.classIds
+          : (studentData.classId ? [studentData.classId] : []);
+        cIds.forEach((cId: string) => {
+          studentCounts[cId] = (studentCounts[cId] || 0) + 1;
+        });
       });
 
       const enrichedGroups = groupsData.map(group => ({

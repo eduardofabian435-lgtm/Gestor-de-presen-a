@@ -5,7 +5,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { Users, BookOpen, GraduationCap, Plus, Trash2, Search, UserPlus, School, UserCheck, Key, Mail, User, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { UserProfile, ClassRoom, Student } from '../types';
+import { UserProfile, ClassRoom, Student, getStudentClassIds } from '../types';
 import { OperationType } from '../constants/operations';
 import { handleFirestoreError } from '../lib/firebaseUtils';
 import ConfirmDialog from './ConfirmDialog';
@@ -113,6 +113,7 @@ const Admin: React.FC = () => {
     try {
       await addDoc(collection(db, 'students'), {
         ...newStudent,
+        classIds: [newStudent.classId],
         status: 'active',
         createdAt: serverTimestamp()
       });
@@ -551,7 +552,7 @@ const Admin: React.FC = () => {
                         </span>
                       </p>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                        Total de alunos: <span className="text-[#1a36b1]">{students.filter(s => s.classId === c.id).length}</span>
+                        Total de alunos: <span className="text-[#1a36b1]">{students.filter(s => getStudentClassIds(s).includes(c.id)).length}</span>
                       </p>
                     </div>
                   </div>
@@ -576,7 +577,7 @@ const Admin: React.FC = () => {
                           {s.polo === 'salvador' ? 'Salvador' : 'Ilha'}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 font-medium">Matrícula: <span className="font-black">{s.registrationNumber}</span> • Turma: <span className="text-[#1a36b1] font-black">{classes.find(c => c.id === s.classId)?.name || 'N/A'}</span></p>
+                      <p className="text-xs text-slate-400 font-medium">Matrícula: <span className="font-black">{s.registrationNumber}</span> • Turmas: <span className="text-[#1a36b1] font-black">{getStudentClassIds(s).map(id => classes.find(c => c.id === id)?.name).filter(Boolean).join(', ') || 'N/A'}</span></p>
                     </div>
                   </div>
                   {isAdmin && (

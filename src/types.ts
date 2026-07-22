@@ -7,6 +7,7 @@ export interface Student {
   name: string;
   registrationNumber: string;
   classId: string;
+  classIds?: string[];
   polo: Polo;
   email?: string;
   phone?: string;
@@ -94,4 +95,11 @@ export interface GroupSchedule {
   shift: 'Manhã' | 'Tarde' | 'Noite' | 'Integral';
   days: DaySchedule;
   createdAt?: any;
+}
+
+export function getStudentClassIds(student: { classId?: string; classIds?: string[] }): string[] {
+  if (Array.isArray(student.classIds) && student.classIds.length > 0) {
+    return student.classIds;
+  }
+  return student.classId ? [student.classId] : [];
 }

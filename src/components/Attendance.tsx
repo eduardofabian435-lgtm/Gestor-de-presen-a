@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 import { Check, X, Search, Filter, Save, AlertCircle, CheckCircle2, ChevronDown, Calendar } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { Student, ClassRoom, AttendanceRecord, Polo, AttendanceStatus } from '../types';
+import { Student, ClassRoom, AttendanceRecord, Polo, AttendanceStatus, getStudentClassIds } from '../types';
 import { OperationType } from '../constants/operations';
 import { useLocation } from 'react-router-dom';
 
@@ -59,10 +59,12 @@ const Attendance: React.FC = () => {
   useEffect(() => {
     if (selectedClass) {
       setLoading(true);
-      const q = query(collection(db, 'students'), where('classId', '==', selectedClass));
+      const q = query(collection(db, 'students'));
       const unsub = onSnapshot(q, (snap) => {
         try {
-          const studentList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+          const studentList = snap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as Student))
+            .filter(s => getStudentClassIds(s).includes(selectedClass));
           setStudents(studentList);
           setLoading(false);
         } catch (err) {
@@ -204,7 +206,8 @@ const Attendance: React.FC = () => {
       const batch = writeBatch(db);
       const now = serverTimestamp();
       const classData = classes.find(c => c.id === selectedClass);
-      const polo = (classData?.polo?.toLowerCase() || 'salvador') as Polo;
+      const rawPolo = (classData?.polo || 'salvador').toString().toLowerCase().trim();
+      const polo: Polo = (rawPolo === 'ilha' || rawPolo === 'salvador') ? (rawPolo as Polo) : 'salvador';
 
       const targetTeacherId = editingTeacherId || user.uid;
 
@@ -243,17 +246,16 @@ const Attendance: React.FC = () => {
             teacherId: targetTeacherId,
             timestamp: now
           });
-        } else if (existingDocId || attendance[student.id] === 'absent') {
-          // If was present but now absent, or just ensuring it's not there
-          batch.delete(recordRef);
+        } else if (existingDocId) {
+          // Only delete if a document actually existed in Firestore
+          batch.delete(doc(db, 'attendance', existingDocId));
         }
       });
 
       // 2. Surgical saving for Report
-      const reportId = `report_${selectedClass}_${date}_${targetTeacherId}_${shift}`.replace(/[^a-zA-Z0-9_-]/g, '_');
-      const reportRef = doc(db, 'class_reports', reportId);
-      
       if (report.trim()) {
+        const reportId = `report_${selectedClass}_${date}_${targetTeacherId}_${shift}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const reportRef = doc(db, 'class_reports', reportId);
         batch.set(reportRef, {
           classId: selectedClass,
           teacherId: targetTeacherId,
@@ -263,15 +265,14 @@ const Attendance: React.FC = () => {
           content: report.trim(),
           timestamp: now
         });
-      } else {
-        batch.delete(reportRef);
+      } else if (existingReportId) {
+        batch.delete(doc(db, 'class_reports', existingReportId));
       }
 
       // 3. Surgical saving for Incidents
-      const incidentId = `incident_${selectedClass}_${date}_${targetTeacherId}_${shift}`.replace(/[^a-zA-Z0-9_-]/g, '_');
-      const incidentRef = doc(db, 'interruptions', incidentId);
-      
       if (incident.trim()) {
+        const incidentId = `incident_${selectedClass}_${date}_${targetTeacherId}_${shift}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const incidentRef = doc(db, 'interruptions', incidentId);
         batch.set(incidentRef, {
           classId: selectedClass,
           teacherId: targetTeacherId,
@@ -281,8 +282,8 @@ const Attendance: React.FC = () => {
           description: incident.trim(),
           timestamp: now
         });
-      } else {
-        batch.delete(incidentRef);
+      } else if (existingIncidentId) {
+        batch.delete(doc(db, 'interruptions', existingIncidentId));
       }
       
       await batch.commit();
@@ -386,7 +387,11 @@ const Attendance: React.FC = () => {
               >
                 <option value="">Selecione uma turma...</option>
                 {classes
-                  .filter(c => selectedPolo === 'all' || c.polo === selectedPolo)
+                  .filter(c => {
+                    if (selectedPolo === 'all') return true;
+                    const cPolo = (c.polo || '').toString().toLowerCase().trim();
+                    return cPolo === selectedPolo.toLowerCase().trim();
+                  })
                   .map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}

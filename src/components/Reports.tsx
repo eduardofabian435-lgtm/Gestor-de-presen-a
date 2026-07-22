@@ -24,7 +24,7 @@ import { safeFormatDate, handleFirestoreError } from '../lib/firebaseUtils';
 import { cn } from '../lib/utils';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { UserProfile, ClassRoom, Student, AttendanceRecord, Interruption, ClassReport } from '../types';
+import { UserProfile, ClassRoom, Student, AttendanceRecord, Interruption, ClassReport, getStudentClassIds } from '../types';
 import { OperationType } from '../constants/operations';
 import { useNavigate } from 'react-router-dom';
 import ConfirmDialog from './ConfirmDialog';
@@ -146,7 +146,11 @@ const Reports: React.FC = () => {
 
     const unsubStudents = onSnapshot(qStudents, (snap) => {
       try {
-        setStudents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student)));
+        let list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+        if (selectedClass) {
+          list = list.filter(s => getStudentClassIds(s).includes(selectedClass));
+        }
+        setStudents(list);
       } catch (err) {
         console.error("Error fetching students:", err);
       }

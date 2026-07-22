@@ -117,12 +117,16 @@ const Dashboard: React.FC = () => {
         let filteredStudentCount = 0;
         snap.docs.forEach(doc => {
           const data = doc.data();
-          const classId = data.classId;
           const studentPolo = data.polo;
+          const cIds = Array.isArray(data.classIds) && data.classIds.length > 0
+            ? data.classIds
+            : (data.classId ? [data.classId] : []);
           
           if (selectedPolo === 'all' || studentPolo === selectedPolo) {
             filteredStudentCount++;
-            counts[classId] = (counts[classId] || 0) + 1;
+            cIds.forEach((classId: string) => {
+              counts[classId] = (counts[classId] || 0) + 1;
+            });
           }
         });
 

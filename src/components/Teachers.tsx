@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { UserProfile, ClassRoom, Student, AttendanceRecord } from '../types';
+import { UserProfile, ClassRoom, Student, AttendanceRecord, getStudentClassIds } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -67,7 +67,7 @@ const Teachers: React.FC = () => {
 
   const getTeacherStats = (teacherId: string) => {
     const teacherClasses = classes.filter(c => c.teacherIds?.includes(teacherId));
-    const teacherStudents = students.filter(s => teacherClasses.some(c => c.id === s.classId));
+    const teacherStudents = students.filter(s => teacherClasses.some(c => getStudentClassIds(s).includes(c.id)));
     const teacherAttendance = attendance.filter(a => a.teacherId === teacherId);
     
     return {
@@ -242,7 +242,7 @@ const Teachers: React.FC = () => {
                               <div>
                                 <p className="font-bold text-slate-900">{c.name}</p>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                                  {students.filter(s => s.classId === c.id).length} Alunos
+                                  {students.filter(s => getStudentClassIds(s).includes(c.id)).length} Alunos
                                 </p>
                               </div>
                             </div>
