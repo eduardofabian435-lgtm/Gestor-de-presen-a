@@ -8,6 +8,7 @@ export interface Student {
   registrationNumber: string;
   classId: string;
   classIds?: string[];
+  shift?: 'Manhã' | 'Tarde' | 'Ambos';
   polo: Polo;
   email?: string;
   phone?: string;

@@ -50,6 +50,7 @@ const Students: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     classIds: [] as string[],
+    shift: 'Manhã' as 'Manhã' | 'Tarde' | 'Ambos',
     polo: 'salvador' as 'salvador' | 'ilha',
     email: '',
     phone: '',
@@ -104,6 +105,7 @@ const Students: React.FC = () => {
       setFormData({
         name: student.name,
         classIds: getStudentClassIds(student),
+        shift: student.shift || 'Ambos',
         polo: student.polo || 'salvador',
         email: student.email || '',
         phone: student.phone || '',
@@ -118,6 +120,7 @@ const Students: React.FC = () => {
       setFormData({
         name: '',
         classIds: initialClassIds,
+        shift: 'Manhã',
         polo: initialPolo,
         email: '',
         phone: '',
@@ -146,6 +149,7 @@ const Students: React.FC = () => {
         name: formData.name,
         classId: formData.classIds[0] || '',
         classIds: formData.classIds,
+        shift: formData.shift,
         polo: formData.polo,
         status: formData.status,
         registrationNumber: formData.registrationNumber,
@@ -317,7 +321,7 @@ const Students: React.FC = () => {
                           )}
                         </div>
                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                          Polo {student.polo === 'salvador' ? 'Salvador' : 'Ilha'}
+                          Polo {student.polo === 'salvador' ? 'Salvador' : 'Ilha'} • Turno: {student.shift || 'Ambos'}
                         </span>
                       </div>
                     </td>
@@ -527,6 +531,33 @@ const Students: React.FC = () => {
                         className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${formData.polo === 'ilha' ? 'bg-slate-800 text-white shadow-lg shadow-slate-900/20' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}
                       >
                         Ilha
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Turno do Aluno</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, shift: 'Manhã' })}
+                        className={`flex-1 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${formData.shift === 'Manhã' ? 'bg-[#1a36b1] text-white shadow-md' : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                      >
+                        Manhã
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, shift: 'Tarde' })}
+                        className={`flex-1 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${formData.shift === 'Tarde' ? 'bg-[#1a36b1] text-white shadow-md' : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                      >
+                        Tarde
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, shift: 'Ambos' })}
+                        className={`flex-1 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${formData.shift === 'Ambos' ? 'bg-[#1a36b1] text-white shadow-md' : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                      >
+                        Ambos
                       </button>
                     </div>
                   </div>

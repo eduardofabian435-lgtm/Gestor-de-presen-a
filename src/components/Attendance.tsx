@@ -305,7 +305,12 @@ const Attendance: React.FC = () => {
   const filteredStudents = students.filter(s => {
     const nameMatch = s.name?.toLowerCase().includes(search.toLowerCase()) || false;
     const regMatch = s.registrationNumber?.includes(search) || false;
-    return nameMatch || regMatch;
+    const matchesSearch = nameMatch || regMatch;
+
+    const studentShift = s.shift || 'Ambos';
+    const matchesShift = studentShift === 'Ambos' || studentShift === shift;
+
+    return matchesSearch && matchesShift;
   });
 
   return (
